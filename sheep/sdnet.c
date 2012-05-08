@@ -174,6 +174,7 @@ static void local_op_done(struct work *work)
 static void cluster_op_done(struct work *work)
 {
 	/* request is forwarded to cpg group */
+	do_cluster_request(work);
 }
 
 static void do_local_request(struct work *work)
@@ -255,6 +256,8 @@ static int check_request(struct request *req)
 	return 0;
 }
 
+static void do_nothing(struct work *work) {}
+
 static void queue_request(struct request *req)
 {
 	struct event_struct *cevent = &req->cev;
@@ -323,7 +326,7 @@ static void queue_request(struct request *req)
 		req->work.fn = do_local_request;
 		req->work.done = local_op_done;
 	} else if (is_cluster_op(req->op)) {
-		req->work.fn = do_cluster_request;
+		req->work.fn = do_nothing;
 		req->work.done = cluster_op_done;
 	} else {
 		eprintf("unknown operation %d\n", hdr->opcode);
