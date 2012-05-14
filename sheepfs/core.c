@@ -47,7 +47,9 @@ static struct sheepfs_file_operation {
 	int (*write)(const char *path, const char *buf, size_t size, off_t);
 	size_t (*get_size)(const char *path);
 } sheepfs_file_ops[] = {
-	[OP_NULL] = { NULL, NULL, NULL },
+	[OP_NULL]	  = { NULL, NULL, NULL },
+	[OP_CLUSTER_INFO] = { cluster_info_read, NULL,
+				cluster_info_get_size },
 };
 
 int sheepfs_set_op(const char *path, unsigned opcode)
@@ -194,8 +196,11 @@ static int sheepfs_main_loop(char *mountpoint)
 	return ret;
 }
 
-static int create_sheepfs_layout(char *path)
+static int create_sheepfs_layout(void)
 {
+	if (create_cluster_layout() < 0)
+		return -1;
+
 	return 0;
 }
 
