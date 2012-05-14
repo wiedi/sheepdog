@@ -179,7 +179,7 @@ static int volume_do_rw(const char *path, char *buf, size_t size,
 		len = size;
 
 	do {
-		syslog(LOG_ERR, "%s oid %"PRIx64", off %ju, len %zu,"
+		syslog(LOG_INFO, "%s oid %"PRIx64", off %ju, len %zu,"
 			" size %zu\n",
 			rw == VOLUME_READ ? "read" : "write",
 			oid, start, len, size);
