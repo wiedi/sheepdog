@@ -153,6 +153,7 @@ static int volume_rw_object(char *buf, uint64_t oid, size_t size,
 	uint32_t vid = oid_to_vid(oid);
 	struct vdi_inode *vdi = vdi_inode_tree_search(vid);
 	unsigned long idx = 0;
+	uint64_t cow_oid = 0;
 
 	if (is_data_obj(oid)) {
 		idx = data_oid_to_idx(oid);
@@ -164,6 +165,19 @@ static int volume_rw_object(char *buf, uint64_t oid, size_t size,
 				goto done;
 			}
 			create = 1;
+		} else {
+			if (rw == VOLUME_READ) {
+				oid = vid_to_data_oid(
+					vdi->inode->data_vdi_id[idx],
+					idx);
+			/* in case we are writing a COW object */
+			} else if (!is_data_obj_writeable(vdi->inode, idx)) {
+				cow_oid = vid_to_data_oid(
+						vdi->inode->data_vdi_id[idx],
+						idx);
+				hdr.flags |= SD_FLAG_CMD_COW;
+				create = 1;
+			}
 		}
 	}
 
@@ -178,9 +192,11 @@ static int volume_rw_object(char *buf, uint64_t oid, size_t size,
 	}
 
 	hdr.oid = oid;
+	hdr.cow_oid = cow_oid;
 	hdr.data_length = size;
 	hdr.offset = off;
-	hdr.flags |= SD_FLAG_CMD_CACHE;
+	if (sheepfs_object_cache)
+		hdr.flags |= SD_FLAG_CMD_CACHE;
 
 	fd = get_socket_fd(vdi, &sock_idx);
 	ret = exec_req(fd, (struct sd_req *)&hdr, buf, &wlen, &rlen);
@@ -306,7 +322,7 @@ int volume_sync(const char *path)
 	if (shadow_file_getxattr(path, SH_VID_NAME, &vid, SH_VID_SIZE) < 0)
 		return -EIO;
 
-	if (volume_do_sync(vid) < 0)
+	if (sheepfs_object_cache && volume_do_sync(vid) < 0)
 		return -EIO;
 
 	return 0;
@@ -481,7 +497,8 @@ int volume_remove_entry(const char *entry)
 	/* No need to check error code, for case of connected sheep crashed,
 	 * we continue to do cleanup.
 	 */
-	volume_sync_and_delete(vid);
+	if (sheepfs_object_cache)
+		volume_sync_and_delete(vid);
 
 	vdi = vdi_inode_tree_search(vid);
 	destroy_socket_pool(vdi->socket_pool, SOCKET_POOL_SIZE);

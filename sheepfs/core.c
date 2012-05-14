@@ -34,6 +34,7 @@ char sheepfs_shadow[PATH_MAX];
 static int sheepfs_debug;
 static int sheepfs_fg;
 int sheepfs_page_cache = 0;
+int sheepfs_object_cache = 1;
 const char *sdhost = "localhost";
 int sdport = SD_LISTEN_PORT;
 
@@ -43,11 +44,12 @@ static struct option const long_options[] = {
 	{"help", no_argument, NULL, 'h'},
 	{"foreground", no_argument, NULL, 'f'},
 	{"pagecache", no_argument, NULL, 'k'},
+	{"no-object-cache", no_argument, NULL, 'n'},
 	{"port", required_argument, NULL, 'p'},
 	{NULL, 0, NULL, 0},
 };
 
-static const char *short_options = "a:dfhkp:";
+static const char *short_options = "a:dfhknp:";
 
 static struct sheepfs_file_operation {
 	int (*read)(const char *path, char *buf, size_t size, off_t);
@@ -264,6 +266,7 @@ Options:\n\
   -d, --debug             enable debug output (implies -f)\n\
   -f, --foreground        sheepfs run in the foreground\n\
   -k, --pagecache         use local kernel's page cache to access volume\n\
+  -n  --no-object-cache   disable object cache of the attached volumes\n\
   -p  --port              specify the sheep port (default: 7000)\n\
   -h, --help              display this help and exit\n\
 ");
@@ -276,35 +279,37 @@ int main(int argc, char **argv)
 	int ch, longindex;
 	char *dir = NULL, *cwd;
 
-
 	while ((ch = getopt_long(argc, argv, short_options, long_options,
 				 &longindex)) >= 0) {
 		switch (ch) {
-			case 'a':
-				sdhost = optarg;
-				break;
-			case 'd':
-				sheepfs_debug = 1;
-				break;
-			case 'h':
-				usage(0);
-				break;
-			case 'f':
-				sheepfs_fg = 1;
-				break;
-			case 'k':
-				sheepfs_page_cache = 1;
-				break;
-			case 'p':
-				sdport = strtol(optarg, NULL, 10);
-				if (sdport < 1 || sdport > UINT16_MAX) {
-					fprintf(stderr,
+		case 'a':
+			sdhost = optarg;
+			break;
+		case 'd':
+			sheepfs_debug = 1;
+			break;
+		case 'h':
+			usage(0);
+			break;
+		case 'f':
+			sheepfs_fg = 1;
+			break;
+		case 'k':
+			sheepfs_page_cache = 1;
+			break;
+		case 'n':
+			sheepfs_object_cache = 0;
+			break;
+		case 'p':
+			sdport = strtol(optarg, NULL, 10);
+			if (sdport < 1 || sdport > UINT16_MAX) {
+				fprintf(stderr,
 					"Invalid port number '%s'\n", optarg);
-					exit(1);
-				}
-				break;
-			default:
-				usage(1);
+				exit(1);
+			}
+			break;
+		default:
+			usage(1);
 		}
 	}
 
