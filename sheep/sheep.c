@@ -19,6 +19,11 @@
 #include <signal.h>
 #include <linux/limits.h>
 #include <sys/syslog.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/signalfd.h>
+#include <fcntl.h>
+#include <errno.h>
 
 #include "sheep_priv.h"
 #include "trace/trace.h"
@@ -91,9 +96,54 @@ Available log levels:\n\
   7    SDOG_DEBUG      debugging messages\n");
 }
 
+static int sigfd;
+
+static void signal_handler(int listen_fd, int events, void *data)
+{
+	struct signalfd_siginfo siginfo;
+	int ret;
+
+	ret = read(sigfd, &siginfo, sizeof(siginfo));
+	assert(ret == sizeof(siginfo));
+	dprintf("signal %d\n", siginfo.ssi_signo);
+	switch (siginfo.ssi_signo) {
+	case SIGTERM:
+		sys->status= SD_STATUS_KILLED;
+		break;
+	default:
+		eprintf("signal %d unhandled \n", siginfo.ssi_signo);
+		break;
+	}
+}
+
 static int init_signal(void)
 {
-	return trace_init_signal();
+	sigset_t mask;
+	int ret;
+
+	ret = trace_init_signal();
+	if (ret)
+		return ret;
+
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGTERM);
+	sigprocmask(SIG_BLOCK, &mask, NULL);
+
+	sigfd = signalfd(-1, &mask, SFD_NONBLOCK);
+	if (sigfd < 0) {
+		eprintf("failed to create a signal fd: %m\n");
+		return -1;
+	}
+
+	ret = register_event(sigfd, signal_handler, NULL);
+	if (ret) {
+		eprintf("failed to register signal handler (%d)\n", ret);
+		return -1;
+	}
+
+	dprintf("register signal_handler for %d\n", sigfd);
+
+	return 0;
 }
 
 static struct cluster_info __sys;
@@ -252,6 +302,10 @@ int main(int argc, char **argv)
 
 	local_req_init();
 
+	ret = init_signal();
+	if (ret)
+		exit(1);
+
 	sys->gateway_wqueue = init_work_queue("gateway", false);
 	sys->io_wqueue = init_work_queue("io", false);
 	sys->recovery_wqueue = init_work_queue("recovery", true);
@@ -259,10 +313,6 @@ int main(int argc, char **argv)
 	sys->block_wqueue = init_work_queue("block", true);
 	if (!sys->gateway_wqueue || !sys->io_wqueue ||!sys->recovery_wqueue ||
 	    !sys->deletion_wqueue || !sys->block_wqueue)
-		exit(1);
-
-	ret = init_signal();
-	if (ret)
 		exit(1);
 
 	ret = trace_init();
