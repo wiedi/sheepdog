@@ -91,6 +91,11 @@ Available log levels:\n\
   7    SDOG_DEBUG      debugging messages\n");
 }
 
+static int init_signal(void)
+{
+	return trace_init_signal();
+}
+
 static struct cluster_info __sys;
 struct cluster_info *sys = &__sys;
 
