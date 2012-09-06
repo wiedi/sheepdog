@@ -905,7 +905,6 @@ static struct sd_op_template sd_ops[] = {
 	},
 
 	[SD_OP_KILL_NODE] = {
-		.name = "KILL_NODE",
 		.type = SD_OP_TYPE_LOCAL,
 		.force = 1,
 		.process_main = local_kill_node,
